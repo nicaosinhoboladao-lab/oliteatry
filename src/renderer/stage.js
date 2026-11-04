@@ -5,6 +5,7 @@
  */
 import * as THREE from './vendor/three.module.js';
 import { PostStack } from './post.js';
+import { TransformControls, OrbitControls } from './vendor/addons.module.js';
 import { noise1, mulberry32, clamp } from '../core/prng.js';
 
 export const STAGE_PRESETS = {
@@ -351,6 +352,33 @@ export class Stage {
     this._buildLights();
     this._buildDust();
     this._applyCameras();
+
+    // imported scene objects + selection + transform gizmo + free camera
+    this.objects = [];
+    this._nextObjectId = 1;
+    this.selectedId = null;
+    this.transformMode = 'translate';
+    this.transformDragging = false;
+    this.freecam = false;
+
+    this.freeCamera = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 60);
+    this.freeCamera.position.set(4.2, 2.4, 4.2);
+    this.orbit = new OrbitControls(this.freeCamera, this.renderer.domElement);
+    this.orbit.target.set(0, 1.1, 0);
+    this.orbit.enableDamping = true;
+    this.orbit.dampingFactor = 0.08;
+    this.orbit.enabled = false;
+
+    this.transformControls = new TransformControls(this.cameras.A, this.renderer.domElement);
+    this.transformControls.enabled = false;
+    this.transformControls.setMode(this.transformMode);
+    this.transformControls.addEventListener('dragging-changed', (e) => {
+      this.transformDragging = e.value;
+    });
+    this.scene.add(this.transformControls);
+
+    // the house jester joins the registry so it can be selected and moved too
+    this.addImported('jester', this.avatar, [], { builtin: true, normalize: false });
   }
 
   _buildEnvironment() {
@@ -532,6 +560,10 @@ export class Stage {
       this.cameras[id].aspect = w / h;
       this.cameras[id].updateProjectionMatrix();
     }
+    if (this.freeCamera) {
+      this.freeCamera.aspect = w / h;
+      this.freeCamera.updateProjectionMatrix();
+    }
   }
 
   setQuality(scale = 1) {
@@ -603,16 +635,230 @@ export class Stage {
     this.face.brows[1].rotation.z = 0.16 + face.brow * 0.16;
   }
 
+  /* ------------------------- imported scene objects ------------------------ */
+
+  _normalizeImported(object, opts = {}) {
+    object.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(object);
+    const height = box.getSize(new THREE.Vector3()).y || 1;
+    const scale = clamp((opts.height ?? 1.7) / height, 0.005, 400);
+    object.scale.multiplyScalar(scale);
+    object.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(object);
+    object.position.x -= (b.min.x + b.max.x) / 2;
+    object.position.z -= (b.min.z + b.max.z) / 2;
+    object.position.y -= b.min.y;
+  }
+
+  addImported(name, object, animations = [], opts = {}) {
+    if (opts.normalize !== false) this._normalizeImported(object, opts);
+    object.traverse((o) => {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    });
+    const entry = {
+      id: `obj_${this._nextObjectId++}`,
+      name: name || object.name || 'object',
+      object,
+      animations: animations ?? [],
+      extraClips: [],
+      mixer: null,
+      action: null,
+      clipName: null,
+      loop: true,
+      speed: 1,
+      playing: false,
+      builtin: Boolean(opts.builtin),
+      source: opts.source ?? null,
+    };
+    this.objects.push(entry);
+    this.scene.add(object);
+    return entry;
+  }
+
+  getImported(id) {
+    return this.objects.find((e) => e.id === id) ?? null;
+  }
+
+  getSelected() {
+    return this.objects.find((e) => e.id === this.selectedId) ?? null;
+  }
+
+  addClips(id, clips) {
+    const entry = this.getImported(id);
+    if (!entry) return 0;
+    const seen = new Set([...entry.animations, ...entry.extraClips].map((c) => c.name));
+    let added = 0;
+    for (const clip of clips) {
+      if (!clip || seen.has(clip.name)) continue;
+      seen.add(clip.name);
+      entry.extraClips.push(clip);
+      added += 1;
+    }
+    if (!entry.mixer) entry.mixer = new THREE.AnimationMixer(entry.object);
+    return added;
+  }
+
+  selectObject(id) {
+    const entry = this.getImported(id);
+    if (!entry) return null;
+    this.selectedId = id;
+    this.transformControls.attach(entry.object);
+    this.transformControls.enabled = true;
+    this.transformControls.setMode(this.transformMode);
+    return entry;
+  }
+
+  deselect() {
+    this.selectedId = null;
+    this.transformControls.detach();
+    this.transformControls.enabled = false;
+  }
+
+  removeImported(id) {
+    const i = this.objects.findIndex((e) => e.id === id);
+    if (i < 0) return false;
+    const entry = this.objects[i];
+    if (entry.builtin) return false;
+    if (this.selectedId === id) this.deselect();
+    entry.mixer?.stopAllAction();
+    this.scene.remove(entry.object);
+    entry.object.traverse((o) => {
+      o.geometry?.dispose?.();
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => m.dispose?.());
+      }
+    });
+    this.objects.splice(i, 1);
+    return true;
+  }
+
+  setTransformMode(mode) {
+    this.transformMode = mode;
+    this.transformControls.setMode(mode);
+  }
+
+  setFreecam(on) {
+    this.freecam = Boolean(on);
+    this.orbit.enabled = this.freecam;
+    if (this.freecam) {
+      this.freeCamera.aspect = this.cameras.A.aspect;
+      this.freeCamera.updateProjectionMatrix();
+    }
+  }
+
+  /** Raycast the imported objects (+ jester) under a viewport pixel. */
+  pickImported(clientX, clientY) {
+    const cam = this.activeCamera ?? this.cameras.A;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, cam);
+    const meshes = [];
+    for (const entry of this.objects) {
+      entry.object.traverse((o) => { if (o.isMesh || o.isSkinnedMesh) meshes.push(o); });
+    }
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (!hits.length) return null;
+    const hit = hits[0].object;
+    for (const entry of this.objects) {
+      let owned = false;
+      entry.object.traverse((o) => { if (o === hit) owned = true; });
+      if (owned) return entry;
+    }
+    return null;
+  }
+
+  /* ------------------------------ animations ------------------------------ */
+
+  clipsOf(entryId) {
+    const entry = this.getImported(entryId);
+    if (!entry) return [];
+    return [...entry.animations, ...entry.extraClips];
+  }
+
+  playClip(entryId, clipName, opts = {}) {
+    const entry = this.getImported(entryId);
+    const clip = this.clipsOf(entryId).find((c) => c.name === clipName);
+    if (!entry || !clip) return;
+    if (!entry.mixer) entry.mixer = new THREE.AnimationMixer(entry.object);
+    entry.action?.stop();
+    entry.loop = opts.loop ?? entry.loop;
+    entry.speed = opts.speed ?? entry.speed;
+    entry.action = entry.mixer.clipAction(clip);
+    entry.action.setLoop(entry.loop ? THREE.LoopRepeat : THREE.LoopOnce, entry.loop ? Infinity : 1);
+    entry.action.clampWhenFinished = !entry.loop;
+    entry.action.reset().play();
+    entry.action.setEffectiveTimeScale(entry.speed);
+    entry.clipName = clipName;
+    entry.playing = true;
+  }
+
+  stopClip(entryId) {
+    const entry = this.getImported(entryId);
+    if (!entry) return;
+    entry.action?.stop();
+    entry.action = null;
+    entry.playing = false;
+    entry.clipName = null;
+  }
+
+  setClipSpeed(entryId, speed) {
+    const entry = this.getImported(entryId);
+    if (!entry) return;
+    entry.speed = speed;
+    entry.action?.setEffectiveTimeScale(speed);
+  }
+
+  setClipLoop(entryId, loop) {
+    const entry = this.getImported(entryId);
+    if (!entry) return;
+    entry.loop = Boolean(loop);
+    if (entry.action) {
+      entry.action.setLoop(entry.loop ? THREE.LoopRepeat : THREE.LoopOnce, entry.loop ? Infinity : 1);
+      entry.action.clampWhenFinished = !entry.loop;
+    }
+  }
+
+  update(dt) {
+    for (const entry of this.objects) {
+      if (entry.mixer && entry.action) {
+        entry.mixer.update(dt);
+        if (entry.playing && !entry.loop && !entry.action.isRunning()) {
+          entry.playing = false;
+          entry.action = null;
+          entry.clipName = null;
+        }
+      }
+    }
+    if (this.freecam) this.orbit.update();
+  }
+
   render(t, transition) {
-    const camA = this._positionCamera(transition?.from ?? 'A', t);
-    const needsB = transition && transition.progress < 0.999 && transition.to !== transition.from;
-    const camB = needsB ? this._positionCamera(transition.to, t) : null;
-    const focus = this.cameraCfg[transition?.to ?? 'A']?.distance ?? 4;
+    let camA;
+    let camB = null;
+    let trans = transition;
+    if (this.freecam) {
+      camA = this.freeCamera;
+      trans = null;
+    } else {
+      camA = this._positionCamera(transition?.from ?? 'A', t);
+      const needsB = transition && transition.progress < 0.999 && transition.to !== transition.from;
+      camB = needsB ? this._positionCamera(transition.to, t) : null;
+    }
+    this.activeCamera = camA;
+    this.transformControls.camera = camA;
+    const focus = this.freecam
+      ? this.freeCamera.position.distanceTo(this.orbit.target)
+      : (this.cameraCfg[transition?.to ?? 'A']?.distance ?? 4);
     this.post.render({
       scene: this.scene,
       camA,
       camB,
-      transition,
+      transition: trans,
       near: 0.05,
       far: 60,
       focus,

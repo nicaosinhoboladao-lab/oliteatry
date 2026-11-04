@@ -244,6 +244,126 @@ ipcMain.handle('file:save-text', async (_e, text, suggested = 'legendas.srt') =>
   return { canceled: false, path: filePath };
 });
 
+/* ------------------------------ IPC: models ------------------------------ */
+
+const MODEL_EXTS = ['glb', 'gltf', 'fbx', 'obj', 'stl', 'ply', 'dae', 'vrm'];
+
+function extToMime(ext) {
+  switch (ext.toLowerCase()) {
+    case '.png': return 'image/png';
+    case '.jpg': case '.jpeg': return 'image/jpeg';
+    case '.webp': return 'image/webp';
+    case '.gif': return 'image/gif';
+    case '.bmp': return 'image/bmp';
+    case '.tga': return 'image/x-tga';
+    case '.bin': return 'application/octet-stream';
+    case '.glb': return 'model/gltf-binary';
+    default: return 'application/octet-stream';
+  }
+}
+
+/** Read a referenced sibling file into a base64 data URI. */
+async function toDataUri(ref, dir) {
+  if (!ref || ref.startsWith('data:') || /^https?:/i.test(ref)) return ref;
+  const p = path.isAbsolute(ref) ? ref : path.join(dir, ref);
+  const buf = await fs.readFile(p);
+  return `data:${extToMime(path.extname(p))};base64,${buf.toString('base64')}`;
+}
+
+/** Inline glTF external buffers/images so the renderer never touches disk. */
+async function inlineGltfResources(json, dir) {
+  for (const buf of json.buffers ?? []) {
+    if (buf.uri) buf.uri = await toDataUri(buf.uri, dir);
+  }
+  for (const img of json.images ?? []) {
+    if (img.uri) img.uri = await toDataUri(img.uri, dir);
+  }
+  return json;
+}
+
+/** Inline MTL texture maps (map_Kd, bump, …) as data URIs. */
+async function inlineMtlTextures(mtlPath) {
+  const dir = path.dirname(mtlPath);
+  const text = await fs.readFile(mtlPath, 'utf8');
+  const keys = ['map_Kd', 'map_Ka', 'map_Ks', 'map_Ns', 'map_d', 'map_bump', 'map_Bump',
+    'bump', 'disp', 'decal', 'refl', 'map_Ke', 'map_Pr', 'map_Pm'];
+  const re = new RegExp(`^\\s*(?:${keys.join('|')})\\s+(\\S+)`, 'gmi');
+  const found = new Map();
+  for (const m of text.matchAll(re)) {
+    const file = m[1].replace(/^['"]|['"]$/g, '');
+    if (!file || file.startsWith('data:') || /^https?:/i.test(file)) continue;
+    const p = path.isAbsolute(file) ? file : path.join(dir, file);
+    if (!found.has(file)) found.set(file, p);
+  }
+  let out = text;
+  for (const [file, p] of found) {
+    try {
+      const uri = await toDataUri(file, dir);
+      const esc = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      out = out.replace(new RegExp(`(\\s)${esc}(?=\\s|$|\\r|\\n)`, 'g'), `$1${uri}`);
+    } catch { /* texture unreadable — leave the reference as-is */ }
+  }
+  return out;
+}
+
+/**
+ * Read a 3D model / animation file for the renderer, resolving the external
+ * resources of the few formats that carry them (glTF buffers/images, OBJ mtl).
+ * Self-contained formats (glb, fbx, stl, ply, dae, vrm) return their raw bytes.
+ */
+async function readModelAsset(filePath) {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  const name = path.basename(filePath);
+  const dir = path.dirname(filePath);
+
+  if (ext === 'gltf') {
+    const json = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    return { path: filePath, name, ext, kind: 'text', data: JSON.stringify(await inlineGltfResources(json, dir)) };
+  }
+
+  if (ext === 'obj') {
+    const objText = await fs.readFile(filePath, 'utf8');
+    const mtlMatch = objText.match(/^mtllib\s+(.+)$/mi);
+    let mtl = null;
+    if (mtlMatch) {
+      const mtlRef = mtlMatch[1].trim().replace(/^['"]|['"]$/g, '');
+      const mtlPath = path.isAbsolute(mtlRef) ? mtlRef : path.join(dir, mtlRef);
+      try { mtl = await inlineMtlTextures(mtlPath); } catch { mtl = null; }
+    }
+    return { path: filePath, name, ext, kind: 'text', data: objText, mtl };
+  }
+
+  const data = await fs.readFile(filePath);
+  return { path: filePath, name, ext, kind: 'binary', data };
+}
+
+ipcMain.handle('model:open', async (_e, opts = {}) => {
+  const isAnim = opts.kind === 'animation';
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: isAnim ? 'Importar animação' : 'Importar modelo 3D',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Modelos 3D e animações', extensions: MODEL_EXTS },
+      { name: 'Todos os arquivos', extensions: ['*'] },
+    ],
+  });
+  if (canceled || !filePaths?.length) return { canceled: true };
+  const filePath = filePaths[0];
+  try {
+    const asset = await readModelAsset(filePath);
+    return { canceled: false, ...asset };
+  } catch (err) {
+    return {
+      canceled: false,
+      error: String(err?.message ?? err),
+      path: filePath,
+      name: path.basename(filePath),
+      ext: path.extname(filePath).slice(1).toLowerCase(),
+      kind: 'binary',
+    };
+  }
+});
+
 ipcMain.on('win:minimize', () => win?.minimize());
 ipcMain.on('win:maximize', () => {
   if (!win) return;

@@ -4,6 +4,7 @@
  * this file is the host.
  */
 import { I18n } from '../core/i18n.js';
+import * as THREE from './vendor/three.module.js';
 import { PerformancePipeline, ARCHETYPES } from '../core/performance.js';
 import {
   createProject, projectFromJSON, projectToJSON, refreshVoiceClip, timelineFromProject,
@@ -13,6 +14,7 @@ import { wordsToCues, cuesToSrt } from '../core/subtitles.js';
 import { clamp } from '../core/prng.js';
 import { Stage } from './stage.js';
 import { VoiceEngine, CanvasRecorder, encodeStills } from './voice.js';
+import { loadModelAsset, retargetClips, hasSkeleton } from './imports.js';
 
 const api = window.oliteatry ?? {
   isDesktop: false,
@@ -20,6 +22,7 @@ const api = window.oliteatry ?? {
   openProject: async () => ({ canceled: true }),
   saveBinary: async () => ({ canceled: true }),
   saveText: async () => ({ canceled: true }),
+  importModel: async () => ({ canceled: true }),
   minimize() {}, maximize() {}, close() {}, log() {},
 };
 
@@ -49,11 +52,13 @@ const ICONS = {
   light: `<svg viewBox="0 0 24 24"><path d="M9.5 17.5h5M10 20.5h4"/><path d="M12 3a6 6 0 00-3.6 10.8V17h7.2v-3.2A6 6 0 0012 3z"/></svg>`,
   sound: `<svg viewBox="0 0 24 24"><path d="M4 10v4M8 7.5v9M12 4.5v15M16 8.5v7M20 11v2"/></svg>`,
   export: `<svg viewBox="0 0 24 24"><path d="M12 15V3.5M8 7l4-4 4 4"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>`,
+  objects: `<svg viewBox="0 0 24 24"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 2v9M4 6.5l8 4.5 8-4.5M12 20v-9"/></svg>`,
 };
 
 const TABS = [
   { id: 'stage', icon: 'stage' },
   { id: 'actor', icon: 'actor' },
+  { id: 'objects', icon: 'objects' },
   { id: 'camera', icon: 'camera' },
   { id: 'light', icon: 'light' },
   { id: 'sound', icon: 'sound' },
@@ -482,6 +487,263 @@ function panelExport() {
   return box;
 }
 
+/* ------------------------------ objects panel ----------------------------- */
+
+const TRANSFORM_MODES = [
+  ['translate', 'objects.mode.move'],
+  ['rotate', 'objects.mode.rotate'],
+  ['scale', 'objects.mode.scale'],
+];
+
+const round = (v, d = 3) => Number(v.toFixed(d));
+
+function setGizmoMode(mode) {
+  stage.setTransformMode(mode);
+  document.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.gizmo === mode));
+}
+
+function panelObjects() {
+  const box = el('div', { class: 'panel' + (state.activeTab === 'objects' ? ' active' : ''), 'data-panel': 'objects' });
+  box.append(h2('objects.title'));
+
+  box.append(buttonField('objects.importModel', () => importModel()));
+  box.append(buttonField('objects.importAnimation', () => importAnimation()));
+  box.append(toggleField('objects.freecam', stage.freecam, (v) => {
+    stage.setFreecam(v);
+    setStatus('status.ready');
+  }));
+  box.append(el('p', { class: 'hint', 'data-loc': 'objects.freecam.hint' }));
+
+  box.append(section('objects.gizmo'));
+  const modeRow = el('div', { class: 'seg' });
+  for (const [mode, key] of TRANSFORM_MODES) {
+    const b = el('button', { class: 'seg-btn' + (stage.transformMode === mode ? ' active' : ''), 'data-gizmo': mode, 'data-loc': key });
+    b.addEventListener('click', () => setGizmoMode(mode));
+    modeRow.append(b);
+  }
+  box.append(modeRow);
+
+  box.append(section('objects.list'));
+  box.append(el('div', { class: 'obj-list' }, (state.refs.objList = el('div'))));
+
+  box.append(section('objects.props'));
+  box.append(el('div', { class: 'obj-props' }, (state.refs.objProps = el('div'))));
+  return box;
+}
+
+function renderObjectList() {
+  const host = state.refs.objList;
+  if (!host) return;
+  host.innerHTML = '';
+  if (!stage.objects.length) {
+    host.append(el('p', { class: 'hint', 'data-loc': 'objects.empty' }));
+    return;
+  }
+  for (const entry of stage.objects) {
+    const row = el('div', { class: 'obj-row' + (stage.selectedId === entry.id ? ' selected' : '') });
+    const name = el('button', { class: 'obj-name', title: entry.source ?? '' }, entry.name);
+    name.addEventListener('click', () => selectObjectById(entry.id));
+    const eye = el('button', {
+      class: 'obj-eye' + (entry.object.visible ? '' : ' off'),
+      title: state.i18n.t('objects.visibility'),
+    }, entry.object.visible ? '◉' : '○');
+    eye.addEventListener('click', (e) => {
+      e.stopPropagation();
+      entry.object.visible = !entry.object.visible;
+      renderObjectList();
+    });
+    row.append(name, eye);
+    if (!entry.builtin) {
+      const del = el('button', { class: 'obj-del', title: state.i18n.t('objects.delete') }, '✕');
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        stage.removeImported(entry.id);
+        renderObjectList();
+        renderObjectProps();
+      });
+      row.append(del);
+    }
+    host.append(row);
+  }
+}
+
+function selectObjectById(id) {
+  stage.selectObject(id);
+  setTab('objects');
+  renderObjectList();
+  renderObjectProps();
+}
+
+function syncTransformInputs() {
+  const entry = stage.getSelected();
+  const r = state.refs.objTransform;
+  if (!entry || !r) return;
+  const o = entry.object;
+  const e = new THREE.Euler().setFromQuaternion(o.quaternion, 'XYZ');
+  r.px.value = round(o.position.x);
+  r.py.value = round(o.position.y);
+  r.pz.value = round(o.position.z);
+  r.rx.value = round(THREE.MathUtils.radToDeg(e.x), 1);
+  r.ry.value = round(THREE.MathUtils.radToDeg(e.y), 1);
+  r.rz.value = round(THREE.MathUtils.radToDeg(e.z), 1);
+  r.sx.value = round(o.scale.x);
+  r.sy.value = round(o.scale.y);
+  r.sz.value = round(o.scale.z);
+}
+
+function vec3Field(labelKey, get, set, opts = {}) {
+  const r = {};
+  const axis = (name, v) => {
+    const inp = el('input', { type: 'number', step: opts.step ?? 0.05, value: v });
+    inp.addEventListener('input', () => {
+      const val = parseFloat(inp.value);
+      if (Number.isFinite(val)) set(name, val);
+    });
+    r[name] = inp;
+    return el('span', { class: 'vec3-cell' }, inp);
+  };
+  const v = get();
+  const elm = el('label', { class: 'field' },
+    el('div', { class: 'row' }, el('span', { class: 'field-label', 'data-loc': labelKey })),
+    el('div', { class: 'vec3' }, axis('x', v.x), axis('y', v.y), axis('z', v.z)));
+  return { elm, refs: r };
+}
+
+function renderObjectProps() {
+  const host = state.refs.objProps;
+  if (!host) return;
+  host.innerHTML = '';
+  state.refs.objTransform = null;
+  const entry = stage.getSelected();
+  if (!entry) {
+    host.append(el('p', { class: 'hint', 'data-loc': 'objects.none' }));
+    return;
+  }
+  const o = entry.object;
+
+  const pos = vec3Field('objects.position',
+    () => o.position,
+    (a, v) => { o.position[a] = v; });
+  const rot = vec3Field('objects.rotation',
+    () => { const e = new THREE.Euler().setFromQuaternion(o.quaternion, 'XYZ'); return { x: THREE.MathUtils.radToDeg(e.x), y: THREE.MathUtils.radToDeg(e.y), z: THREE.MathUtils.radToDeg(e.z) }; },
+    (a, v) => { const e = new THREE.Euler().setFromQuaternion(o.quaternion, 'XYZ'); e[a] = THREE.MathUtils.degToRad(v); o.rotation.set(e.x, e.y, e.z); },
+    { step: 1 });
+  const scl = vec3Field('objects.scale',
+    () => o.scale,
+    (a, v) => { o.scale[a] = v; });
+
+  host.append(pos.elm, rot.elm, scl.elm);
+  state.refs.objTransform = { px: pos.refs.x, py: pos.refs.y, pz: pos.refs.z, rx: rot.refs.x, ry: rot.refs.y, rz: rot.refs.z, sx: scl.refs.x, sy: scl.refs.y, sz: scl.refs.z };
+
+  const btnRow = el('div', { class: 'btn-row' });
+  const reset = el('button', { class: 'btn small', 'data-loc': 'objects.reset' });
+  reset.addEventListener('click', () => { o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); syncTransformInputs(); });
+  const center = el('button', { class: 'btn small', 'data-loc': 'objects.center' });
+  center.addEventListener('click', () => { o.position.x = 0; o.position.z = 0; syncTransformInputs(); });
+  const floor = el('button', { class: 'btn small', 'data-loc': 'objects.floor' });
+  floor.addEventListener('click', () => { const b = new THREE.Box3().setFromObject(o); o.position.y -= b.min.y; syncTransformInputs(); });
+  const focus = el('button', { class: 'btn small', 'data-loc': 'objects.focus' });
+  focus.addEventListener('click', () => focusSelected());
+  btnRow.append(reset, center, floor, focus);
+  host.append(btnRow);
+
+  // animations
+  host.append(section('objects.animations'));
+  const clips = stage.clipsOf(entry.id);
+  if (!clips.length) {
+    host.append(el('p', { class: 'hint', 'data-loc': 'objects.noAnim' }));
+  } else {
+    const speedRow = el('label', { class: 'field' },
+      el('div', { class: 'row' }, el('span', { class: 'field-label', 'data-loc': 'objects.animSpeed' }), el('output', {}, entry.speed.toFixed(2))));
+    const speed = el('input', { type: 'range', min: 0.1, max: 3, step: 0.05, value: entry.speed });
+    speed.addEventListener('input', () => {
+      stage.setClipSpeed(entry.id, Number(speed.value));
+      speedRow.querySelector('output').textContent = Number(speed.value).toFixed(2);
+    });
+    speedRow.append(speed);
+    host.append(speedRow);
+    const loop = toggleField('objects.animLoop', entry.loop, (v) => { entry.loop = v; stage.setClipLoop(entry.id, v); });
+    host.append(loop);
+    const list = el('div', { class: 'clip-list' });
+    for (const clip of clips) {
+      const playing = entry.clipName === clip.name && entry.playing;
+      const row = el('div', { class: 'clip-row' + (playing ? ' playing' : '') });
+      const btn = el('button', { class: 'btn small clip-play', title: state.i18n.t(playing ? 'objects.stop' : 'objects.play') }, playing ? '■' : '▶');
+      btn.addEventListener('click', () => {
+        if (playing) stage.stopClip(entry.id);
+        else stage.playClip(entry.id, clip.name);
+        renderObjectProps();
+      });
+      row.append(btn, el('span', { class: 'clip-name' }, clip.name));
+      list.append(row);
+    }
+    host.append(list);
+  }
+}
+
+function focusSelected() {
+  const entry = stage.getSelected();
+  if (!entry) return;
+  const box = new THREE.Box3().setFromObject(entry.object);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3()).length() || 1;
+  stage.orbit.target.copy(center);
+  const dir = stage.freeCamera.position.clone().sub(center).normalize();
+  stage.freeCamera.position.copy(center).add(dir.multiplyScalar(Math.max(1.5, size * 1.4)));
+  stage.setFreecam(true);
+  buildInspector();
+  renderObjectList();
+  renderObjectProps();
+}
+
+/* -------------------------------- importing ------------------------------- */
+
+async function importModel() {
+  const res = await api.importModel('model');
+  if (res.canceled) return;
+  try {
+    const { object, animations } = await loadModelAsset(res);
+    const entry = stage.addImported(res.name.replace(/\.[^.]+$/, ''), object, animations, { source: res.path });
+    if (animations.length) toast(state.i18n.t('toast.importedAnim', { n: animations.length, name: entry.name }));
+    else toast(state.i18n.t('toast.imported', { name: entry.name }));
+    stage.selectObject(entry.id);
+    setTab('objects');
+    renderObjectList();
+    renderObjectProps();
+  } catch (err) {
+    toast(state.i18n.t('toast.error', { msg: err.message }), 'error');
+  }
+}
+
+async function importAnimation() {
+  const res = await api.importModel('animation');
+  if (res.canceled) return;
+  try {
+    const { object, animations } = await loadModelAsset(res);
+    if (!animations.length) {
+      toast(state.i18n.t('objects.noAnim'), 'error');
+      return;
+    }
+    const target = stage.getSelected();
+    if (target && hasSkeleton(target.object)) {
+      const clips = retargetClips(animations, target.object);
+      const added = stage.addClips(target.id, clips);
+      toast(state.i18n.t('toast.retargeted', { n: added, name: target.name }));
+      renderObjectList();
+      renderObjectProps();
+      return;
+    }
+    const entry = stage.addImported(res.name.replace(/\.[^.]+$/, ''), object, animations, { source: res.path });
+    stage.selectObject(entry.id);
+    setTab('objects');
+    toast(state.i18n.t('toast.importedAnim', { n: animations.length, name: entry.name }));
+    renderObjectList();
+    renderObjectProps();
+  } catch (err) {
+    toast(state.i18n.t('toast.error', { msg: err.message }), 'error');
+  }
+}
+
 function updateExportSummary() {
   const node = state.refs.exportSummary;
   if (!node || !canvas) return;
@@ -491,8 +753,10 @@ function updateExportSummary() {
 function buildInspector() {
   const host = $('#inspector');
   host.innerHTML = '';
-  host.append(panelStage(), panelActor(), panelCamera(), panelLight(), panelSound(), panelExport());
+  host.append(panelStage(), panelActor(), panelObjects(), panelCamera(), panelLight(), panelSound(), panelExport());
   state.i18n.apply(host);
+  renderObjectList();
+  renderObjectProps();
   updateExportSummary();
 }
 
@@ -866,6 +1130,7 @@ function tick(now) {
   const live = state.project.performance.liveMic ? state.mic.level : 0;
   stage.applyPerformance(sample, { liveMic: live, mirrorTime: state.time });
   stage.updateDust(state.time);
+  stage.update(dt);
 
   const decision = state.timeline.cameraAt(state.time);
   if (!state.exporting) stage.render(state.time, decision);
@@ -981,6 +1246,30 @@ function wireChrome() {
     if (e.code === 'KeyC') { addCut(state.project.cameraTransition ?? 'fade'); }
     if (e.code === 'KeyS' && e.ctrlKey) { e.preventDefault(); saveProject(); }
     if (e.code === 'KeyO' && e.ctrlKey) { e.preventDefault(); openProject(); }
+    // scene-object manipulation
+    if (e.code === 'KeyW') { setGizmoMode('translate'); }
+    if (e.code === 'KeyE') { setGizmoMode('rotate'); }
+    if (e.code === 'KeyR') { setGizmoMode('scale'); }
+    if (e.code === 'KeyG') { stage.setFreecam(!stage.freecam); buildInspector(); }
+    if (e.code === 'KeyF') { focusSelected(); }
+    if (e.code === 'Escape') { stage.deselect(); renderObjectList(); renderObjectProps(); }
+    if (e.code === 'Delete' || e.code === 'Backspace') {
+      const sel = stage.getSelected();
+      if (sel && !sel.builtin) {
+        stage.removeImported(sel.id);
+        renderObjectList();
+        renderObjectProps();
+      }
+    }
+  });
+
+  // click-to-select in the viewport
+  canvas.addEventListener('click', (e) => {
+    const entry = stage.pickImported(e.clientX, e.clientY);
+    if (entry) stage.selectObject(entry.id);
+    else stage.deselect();
+    renderObjectList();
+    renderObjectProps();
   });
 
   new ResizeObserver(() => applySize()).observe($('#viewport'));
@@ -1007,6 +1296,9 @@ async function boot() {
       })(),
       canvas: canvas ? [canvas.width, canvas.height] : [0, 0],
       clips: state.timeline ? state.timeline.tracks.reduce((n, t) => n + t.clips.length, 0) : 0,
+      objects: stage.objects.length,
+      selected: stage.selectedId,
+      freecam: stage.freecam,
       syllables: collectSegments().length,
       locale: state.i18n?.locale,
       sample: state.pipeline ? state.pipeline.sample(state.time).meta : null,
@@ -1049,6 +1341,7 @@ async function boot() {
   canvas = $('#view');
   viewport = $('#viewport');
   stage = new Stage(canvas);
+  stage.transformControls.addEventListener('objectChange', () => syncTransformInputs());
   voice = new VoiceEngine();
   await voice.resume();
 
