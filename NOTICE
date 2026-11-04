@@ -1,0 +1,16 @@
+OLiteatry
+Copyright 2026 OLiteatry contributors
+
+This product includes software developed by third parties:
+
+  three.js ........................ MIT (c) three.js authors
+  Electron ........................ MIT (c) Electron contributors
+  Node.js ......................... MIT (c) Node.js contributors
+
+The bundled jester mark, the parchment theme and the procedural stage/avatar
+geometry are original work of the OLiteatry contributors, licensed CC0-1.0,
+except the name and logo (see TRADEMARK.md).
+
+No third-party fonts, avatars, audio or 3D models are redistributed with this
+repository. Everything visible is generated at runtime (canvas textures,
+primitive geometry, formant synthesis).

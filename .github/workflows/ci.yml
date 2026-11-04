@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Core must stay engine-free
+        shell: bash
+        run: |
+          set -e
+          if grep -rn -E "three\.module|UnityEngine|\.\./renderer|require\('electron'\)" src/core; then
+            echo "::error::src/core must not depend on the renderer or an engine"
+            exit 1
+          fi
+          echo "core is clean"
+
+      - name: Locale key parity
+        run: node tools/check-locales.mjs
+
+      - name: Package (portable exe)
+        run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oliteatry-windows-x64
+          path: dist/*.exe
+          if-no-files-found: error

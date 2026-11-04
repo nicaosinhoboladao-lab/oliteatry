@@ -1,0 +1,534 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "name": "Palco sem nome",
+    "created": "2026-11-04T23:18:03.249Z",
+    "app": "OLiteatry 0.1.0",
+    "engine": "three.js reference host",
+    "locale": "pt-BR"
+  },
+  "stage": {
+    "preset": "courtyard",
+    "floorTone": 0.55,
+    "ambient": 0.34,
+    "fog": 0.18
+  },
+  "lighting": {
+    "key": {
+      "intensity": 2.2,
+      "color": "#ffe2bd",
+      "azimuth": 38,
+      "elevation": 42
+    },
+    "fill": {
+      "intensity": 0.65,
+      "color": "#8f6bd6",
+      "azimuth": -52,
+      "elevation": 18
+    },
+    "rim": {
+      "intensity": 1.6,
+      "color": "#c9a227",
+      "azimuth": 168,
+      "elevation": 26
+    }
+  },
+  "cameras": {
+    "A": {
+      "framing": "wide",
+      "focal": 28,
+      "height": 1.32,
+      "distance": 4.6,
+      "lookY": 1.12,
+      "shake": 0.15
+    },
+    "B": {
+      "framing": "close",
+      "focal": 55,
+      "height": 1.52,
+      "distance": 2.7,
+      "lookY": 1.44,
+      "shake": 0.3
+    }
+  },
+  "post": {
+    "bloom": 0.38,
+    "bloomThreshold": 0.72,
+    "dof": 0.35,
+    "exposure": 1.02,
+    "contrast": 1.06,
+    "saturation": 1.04,
+    "vignette": 0.42,
+    "grain": 0.16,
+    "dither": 0,
+    "scanlines": 0,
+    "ps2": false
+  },
+  "performance": {
+    "archetype": "theatrical",
+    "intensity": 0.72,
+    "seed": "jester-01",
+    "liveMic": false
+  },
+  "voice": {
+    "provider": "scratch-synth",
+    "locale": "pt-BR",
+    "rate": 1,
+    "pitch": 0.92
+  },
+  "localization": {
+    "locale": "pt-BR",
+    "fallback": "en",
+    "catalogs": [
+      "pt-BR",
+      "en"
+    ]
+  },
+  "timeline": {
+    "duration": 18,
+    "fps": 60,
+    "tracks": [
+      {
+        "id": "camera",
+        "kind": "camera",
+        "label": "Câmera",
+        "clips": [
+          {
+            "id": "cam_a_1",
+            "kind": "camera",
+            "start": 0,
+            "duration": 6.4,
+            "label": "A · Plano geral",
+            "data": {
+              "cam": "A",
+              "in": {
+                "type": "cut",
+                "duration": 0
+              }
+            }
+          },
+          {
+            "id": "cam_b_1",
+            "kind": "camera",
+            "start": 6.4,
+            "duration": 5.6,
+            "label": "B · Primeiro plano",
+            "data": {
+              "cam": "B",
+              "in": {
+                "type": "wipe",
+                "duration": 0.7,
+                "easing": "easeInOut"
+              }
+            }
+          },
+          {
+            "id": "cam_a_2",
+            "kind": "camera",
+            "start": 12,
+            "duration": 6,
+            "label": "A · Retorno",
+            "data": {
+              "cam": "A",
+              "in": {
+                "type": "fade",
+                "duration": 0.5,
+                "easing": "easeInOut"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "voice",
+        "kind": "speech",
+        "label": "Voz",
+        "clips": [
+          {
+            "id": "voice_1",
+            "kind": "speech",
+            "start": 1,
+            "duration": 10.009,
+            "label": "Fala de abertura",
+            "data": {
+              "text": "Bem-vindos ao teatrinho, senhoras e senhores! Eu sou o bobo da corte — e este é o meu palco. Aqui, cada gesto é ensaiado... mas nenhum parece ensaiado.",
+              "locale": "pt-BR",
+              "rate": 1,
+              "visemes": [
+                {
+                  "t": 0,
+                  "d": 0.135,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "Bem-"
+                },
+                {
+                  "t": 0.135,
+                  "d": 0.1276,
+                  "viseme": "I",
+                  "weight": 0.72,
+                  "syllable": "vin"
+                },
+                {
+                  "t": 0.2626,
+                  "d": 0.1276,
+                  "viseme": "O",
+                  "weight": 0.5616,
+                  "syllable": "dos"
+                },
+                {
+                  "t": 0.4351,
+                  "d": 0.1202,
+                  "viseme": "aa",
+                  "weight": 0.55,
+                  "syllable": "ao"
+                },
+                {
+                  "t": 0.6003,
+                  "d": 0.135,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "teat"
+                },
+                {
+                  "t": 0.7353,
+                  "d": 0.1276,
+                  "viseme": "I",
+                  "weight": 0.72,
+                  "syllable": "rin"
+                },
+                {
+                  "t": 0.8629,
+                  "d": 0.1202,
+                  "viseme": "O",
+                  "weight": 0.5616,
+                  "syllable": "ho"
+                },
+                {
+                  "t": 1.198,
+                  "d": 0.1276,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "sen"
+                },
+                {
+                  "t": 1.3256,
+                  "d": 0.1276,
+                  "viseme": "O",
+                  "weight": 0.72,
+                  "syllable": "hor"
+                },
+                {
+                  "t": 1.4532,
+                  "d": 0.1202,
+                  "viseme": "aa",
+                  "weight": 0.5616,
+                  "syllable": "as"
+                },
+                {
+                  "t": 1.6183,
+                  "d": 0.1127,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "e"
+                },
+                {
+                  "t": 1.776,
+                  "d": 0.1276,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "sen"
+                },
+                {
+                  "t": 1.9036,
+                  "d": 0.1276,
+                  "viseme": "O",
+                  "weight": 0.72,
+                  "syllable": "hor"
+                },
+                {
+                  "t": 2.0312,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "es"
+                },
+                {
+                  "t": 2.5563,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "Eu"
+                },
+                {
+                  "t": 2.7215,
+                  "d": 0.1276,
+                  "viseme": "O",
+                  "weight": 0.55,
+                  "syllable": "sou"
+                },
+                {
+                  "t": 2.8941,
+                  "d": 0.1127,
+                  "viseme": "O",
+                  "weight": 0.55,
+                  "syllable": "o"
+                },
+                {
+                  "t": 3.0518,
+                  "d": 0.1276,
+                  "viseme": "O",
+                  "weight": 0.55,
+                  "syllable": "bob"
+                },
+                {
+                  "t": 3.1794,
+                  "d": 0.1127,
+                  "viseme": "O",
+                  "weight": 0.42900000000000005,
+                  "syllable": "o"
+                },
+                {
+                  "t": 3.3371,
+                  "d": 0.1202,
+                  "viseme": "aa",
+                  "weight": 0.55,
+                  "syllable": "da"
+                },
+                {
+                  "t": 3.5023,
+                  "d": 0.1276,
+                  "viseme": "O",
+                  "weight": 0.55,
+                  "syllable": "cor"
+                },
+                {
+                  "t": 3.6298,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.42900000000000005,
+                  "syllable": "te"
+                },
+                {
+                  "t": 3.975,
+                  "d": 0.1127,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "e"
+                },
+                {
+                  "t": 4.1327,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "es"
+                },
+                {
+                  "t": 4.2529,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.42900000000000005,
+                  "syllable": "te"
+                },
+                {
+                  "t": 4.418,
+                  "d": 0.1127,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "é"
+                },
+                {
+                  "t": 4.5757,
+                  "d": 0.1127,
+                  "viseme": "O",
+                  "weight": 0.55,
+                  "syllable": "o"
+                },
+                {
+                  "t": 4.7335,
+                  "d": 0.1276,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "meu"
+                },
+                {
+                  "t": 4.906,
+                  "d": 0.1276,
+                  "viseme": "aa",
+                  "weight": 0.55,
+                  "syllable": "pal"
+                },
+                {
+                  "t": 5.0336,
+                  "d": 0.1202,
+                  "viseme": "O",
+                  "weight": 0.42900000000000005,
+                  "syllable": "co"
+                },
+                {
+                  "t": 5.5388,
+                  "d": 0.1202,
+                  "viseme": "aa",
+                  "weight": 0.55,
+                  "syllable": "Aq"
+                },
+                {
+                  "t": 5.6589,
+                  "d": 0.1202,
+                  "viseme": "U",
+                  "weight": 0.42900000000000005,
+                  "syllable": "ui"
+                },
+                {
+                  "t": 5.994,
+                  "d": 0.1276,
+                  "viseme": "aa",
+                  "weight": 0.55,
+                  "syllable": "cad"
+                },
+                {
+                  "t": 6.1216,
+                  "d": 0.1127,
+                  "viseme": "aa",
+                  "weight": 0.42900000000000005,
+                  "syllable": "a"
+                },
+                {
+                  "t": 6.2793,
+                  "d": 0.1276,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "ges"
+                },
+                {
+                  "t": 6.4069,
+                  "d": 0.1202,
+                  "viseme": "O",
+                  "weight": 0.42900000000000005,
+                  "syllable": "to"
+                },
+                {
+                  "t": 6.5721,
+                  "d": 0.1127,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "é"
+                },
+                {
+                  "t": 6.7298,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "en"
+                },
+                {
+                  "t": 6.8499,
+                  "d": 0.1424,
+                  "viseme": "aa",
+                  "weight": 0.72,
+                  "syllable": "saiad"
+                },
+                {
+                  "t": 6.9924,
+                  "d": 0.1127,
+                  "viseme": "O",
+                  "weight": 0.5616,
+                  "syllable": "o"
+                },
+                {
+                  "t": 8.1701,
+                  "d": 0.1276,
+                  "viseme": "aa",
+                  "weight": 0.55,
+                  "syllable": "mas"
+                },
+                {
+                  "t": 8.3427,
+                  "d": 0.1276,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "nen"
+                },
+                {
+                  "t": 8.4703,
+                  "d": 0.1276,
+                  "viseme": "U",
+                  "weight": 0.42900000000000005,
+                  "syllable": "hum"
+                },
+                {
+                  "t": 8.6428,
+                  "d": 0.1276,
+                  "viseme": "aa",
+                  "weight": 0.42900000000000005,
+                  "syllable": "par"
+                },
+                {
+                  "t": 8.7704,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.55,
+                  "syllable": "ec"
+                },
+                {
+                  "t": 8.8906,
+                  "d": 0.1127,
+                  "viseme": "E",
+                  "weight": 0.42900000000000005,
+                  "syllable": "e"
+                },
+                {
+                  "t": 9.0483,
+                  "d": 0.1202,
+                  "viseme": "E",
+                  "weight": 0.5616,
+                  "syllable": "en"
+                },
+                {
+                  "t": 9.1684,
+                  "d": 0.1424,
+                  "viseme": "aa",
+                  "weight": 0.72,
+                  "syllable": "saiad"
+                },
+                {
+                  "t": 9.3109,
+                  "d": 0.1127,
+                  "viseme": "O",
+                  "weight": 0.5616,
+                  "syllable": "o"
+                }
+              ],
+              "source": "scratch-synth"
+            }
+          }
+        ]
+      },
+      {
+        "id": "motion",
+        "kind": "motion",
+        "label": "Movimento",
+        "clips": [
+          {
+            "id": "motion_1",
+            "kind": "motion",
+            "start": 0,
+            "duration": 18,
+            "label": "Idle · Teatral",
+            "data": {
+              "archetype": "theatrical",
+              "intensity": 0.72,
+              "seed": "jester-01"
+            }
+          }
+        ]
+      },
+      {
+        "id": "sfx",
+        "kind": "sfx",
+        "label": "SFX",
+        "clips": []
+      }
+    ]
+  }
+}

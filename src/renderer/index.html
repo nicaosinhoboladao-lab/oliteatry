@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <title>OLiteatry</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 3 L47 25 L38 22 L32 27 L26 22 L17 25 Z" fill="var(--gold)"/>
+          <path d="M17 25 L26 22 L24 30 Z" fill="#8e2f3c" opacity="0.75"/>
+          <circle cx="32" cy="39" r="15" fill="#e9dfc4" stroke="#241528" stroke-width="1"/>
+          <circle cx="26.5" cy="37" r="2.2" fill="#241528"/>
+          <circle cx="37.5" cy="37" r="2.2" fill="#241528"/>
+          <circle cx="32" cy="30" r="1.9" fill="#8e2f3c"/>
+          <path d="M25 45 Q32 51 39 45" stroke="#8e2f3c" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <path d="M18 57 L26 51 L32 57 L38 51 L46 57" fill="none" stroke="#b28b2c" stroke-width="2"/>
+        </svg>
+        <div class="brand-text">
+          <strong data-loc="app.name">OLiteatry</strong>
+          <span data-loc="app.subtitle"></span>
+        </div>
+      </div>
+
+      <div class="project-name">
+        <input id="projectName" spellcheck="false" value="Palco sem nome">
+        <span class="dot"></span>
+      </div>
+
+      <div class="tb-actions">
+        <button class="btn" id="btnNew" data-loc="top.new"></button>
+        <button class="btn" id="btnOpen" data-loc="top.open"></button>
+        <button class="btn" id="btnSave" data-loc="top.save"></button>
+        <select id="langSel" class="lang" data-loc-title="top.lang"></select>
+        <div class="win-controls">
+          <button id="btnMin" title="—">—</button>
+          <button id="btnMax" title="□">□</button>
+          <button id="btnClose" class="close" title="✕">✕</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="rail" id="rail" aria-label="modules"></nav>
+
+    <main class="stage-area">
+      <div class="viewport" id="viewport">
+        <canvas id="view"></canvas>
+        <div class="onion hidden" id="onionLayer"><img id="onionImg" alt=""></div>
+        <div class="vignette-overlay"></div>
+        <div class="hud">
+          <div class="hud-row">
+            <span class="badge" id="camBadge">CAM A</span>
+            <span class="badge rec hidden" id="recBadge"><i></i>REC</span>
+          </div>
+          <div class="hud-row right">
+            <span class="mono" id="tcHud">00:00:00</span>
+            <span class="mono dim" id="fpsHud">— fps</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="btn icon" id="btnPlay" data-loc-title="transport.play">▶</button>
+        <button class="btn icon" id="btnStop" data-loc-title="transport.stop">■</button>
+        <div class="tc">
+          <span id="tcCur">00:00.00</span><span class="dim">/</span><span id="tcTotal">00:18.00</span>
+        </div>
+        <input id="scrub" type="range" min="0" max="1000" value="0" step="1">
+        <label class="loop">
+          <input type="checkbox" id="loopChk" checked>
+          <span data-loc="transport.loop"></span>
+        </label>
+      </div>
+    </main>
+
+    <aside class="inspector" id="inspector"></aside>
+
+    <section class="timeline">
+      <div class="tl-head">
+        <h2 data-loc="timeline.title"></h2>
+        <span class="tl-hint" data-loc="timeline.hint"></span>
+      </div>
+      <div class="tl-body">
+        <div class="tl-labels" id="tlLabels"></div>
+        <div class="tl-grid" id="tlGrid">
+          <div class="ruler" id="ruler"></div>
+          <div class="tracks" id="tracks"></div>
+          <div class="playhead" id="playhead"></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="statusbar">
+      <span id="statusText" data-loc="status.ready"></span>
+      <span class="sep">·</span>
+      <span class="mono" id="statStats"></span>
+      <span class="grow"></span>
+      <span class="hint" data-loc="status.hint"></span>
+      <span class="badge tiny" id="gpuBadge">WEBGL2</span>
+    </footer>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
