@@ -2,10 +2,12 @@
 /**
  * Portable Windows packaging that does not need symlink privileges.
  *
- * `electron-builder --win portable` extracts winCodeSign, which contains macOS
- * symlinks; on a Windows box without Developer Mode that extraction fails
- * ("Cannot create symbolic link"). The app directory itself is fine, so this
- * script packages `dist/win-unpacked` into a portable ZIP instead.
+ * electron-builder's `--win portable` target normally pulls winCodeSign, whose
+ * archive contains macOS symlinks; Windows refuses to create them without
+ * Developer Mode. `package.json` therefore sets `signAndEditExecutable: false`,
+ * which avoids that archive entirely — but it also skips rcedit, so the single
+ * exe keeps Electron's default shell icon. This script packages the *edited*
+ * app directory instead, which keeps the custom icon.
  *
  *   npm run dist:zip
  */

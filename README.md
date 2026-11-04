@@ -48,11 +48,12 @@ Requires Node 20+ and a GPU with WebGL2 (tested on an RX 6600 at 60 fps / 1080p)
 
 **Build the Windows binary:** `npm run dist` → `dist/OLiteatry-0.1.0-windows-x64.exe` (portable, no install).
 
-> On Windows **without Developer Mode**, `electron-builder`'s portable target can fail while extracting
-> `winCodeSign` (that archive contains macOS symlinks and Windows refuses to create them without the
-> privilege). Use `npm run dist:zip` instead: it packages the same app directory as
-> `dist/OLiteatry-0.1.0-windows-x64-portable.zip` (~115 MB). Unzip, run `OLiteatry.exe`, no installer,
-> no admin rights.
+> Why it just works: `signAndEditExecutable` is set to `false` in `package.json`, so electron-builder
+> never unpacks the `winCodeSign` archive — that archive carries macOS symlinks and Windows refuses to
+> create them unless Developer Mode is on, which is what used to break this step.
+> The trade-off is cosmetic: the single-file exe keeps Electron's stock **shell** icon (the app window
+> and taskbar use the house mark). `npm run dist:zip` produces the icon-correct unpacked build
+> (`dist/OLiteatry-<version>-windows-x64-portable.zip`) if you'd rather ship that.
 
 ## Keyboard
 
