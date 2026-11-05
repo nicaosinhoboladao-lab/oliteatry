@@ -645,6 +645,13 @@ function renderObjectProps() {
   btnRow.append(reset, center, floor, focus);
   host.append(btnRow);
 
+  if (!entry.builtin && !hasSkeleton(entry.object)) {
+    const rigBtn = el('button', { class: 'btn wax wide', 'data-loc': 'objects.autorig' });
+    rigBtn.addEventListener('click', () => autorigSelected());
+    host.append(rigBtn);
+    host.append(el('p', { class: 'hint', 'data-loc': 'objects.autorig.hint' }));
+  }
+
   // animations
   host.append(section('objects.animations'));
   const clips = stage.clipsOf(entry.id);
@@ -787,6 +794,27 @@ function deleteObject(entry) {
   renderTimeline();
   renderObjectList();
   renderObjectProps();
+}
+
+async function autorigSelected() {
+  const entry = stage.getSelected();
+  if (!entry || entry.builtin) return;
+  if (hasSkeleton(entry.object)) {
+    toast(state.i18n.t('toast.autorigSkip'), 'error');
+    return;
+  }
+  setStatus('status.rigging');
+  await new Promise((r) => setTimeout(r, 30)); // let the busy state paint first
+  try {
+    const n = stage.autorigObject(entry.id);
+    toast(state.i18n.t('toast.autorigged', { n }));
+    renderObjectList();
+    renderObjectProps();
+  } catch (err) {
+    toast(state.i18n.t('toast.error', { msg: err.message }), 'error');
+  } finally {
+    setStatus('status.ready');
+  }
 }
 
 function updateExportSummary() {

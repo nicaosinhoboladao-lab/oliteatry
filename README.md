@@ -32,6 +32,7 @@ Parchment-and-violet interface, PS2-era post stack, and a procedural idle-motion
 | **Model import** | GLB / GLTF / FBX / OBJ(+MTL) / STL / PLY / DAE / **VRM** (three-vrm), auto-centred and scaled to the stage with shadows on |
 | **Scene objects** | Click-to-select, move / rotate / scale gizmo (W / E / R), numeric transform fields, visibility, free orbit camera (G), floor/centre/focus |
 | **Animation** | Clips embedded in imported models play through an `AnimationMixer` with loop + speed; same-name bone retargeting drives one rig from another (e.g. the CC0 Quaternius Universal Animation Library). Clips can be dropped onto a dedicated timeline track and are then driven deterministically by the timeline clock (scrub-safe) |
+| **Auto-rig** | Unrigged humanoid meshes can be rigged in one click: silhouette-based skeleton placement + geodesic (Dijkstra) skin weights, reusing the same bone names so the animation library retargets onto them |
 | **Project format** | Engine-neutral JSON (`.oliteproj.json`), schema version + migrator, round-trip tested |
 
 ![OLiteatry, wide shot](docs/media/wide-shot.png)
@@ -122,8 +123,9 @@ plain ES modules with no build step and no import map.
 
 Honest list, so nobody wastes an afternoon:
 
-- **Auto-rigging** — designed in the doc (guided placement + bone-heat weights), not implemented:
-  imported rigs drive imported clips, but an unrigged mesh can't be posed yet.
+- **Production auto-rigging** — a heuristic humanoid auto-rigger ships now (silhouette skeleton
+  + geodesic skin weights); the doc's guided-placement + bone-heat rigger is still the Unity plan
+  for production-quality deformations.
 - **Full VRM expression/spring-bone evaluation** — VRM avatars import and render (via three-vrm)
   with their humanoid rig; expression presets and spring-bone physics are loaded but not yet wired
   to the performance engine.

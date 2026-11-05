@@ -182,6 +182,11 @@
   "toast.animAdded": "{name} added to the timeline",
   "timeline.track.anim": "Animation",
   "objects.addToTimeline": "Add to timeline",
+  "objects.autorig": "Auto-rig humanoid",
+  "objects.autorig.hint": "Generates a humanoid skeleton and skin weights so animation clips can drive this mesh.",
+  "toast.autorigged": "Rigged with {n} bones",
+  "toast.autorigSkip": "This object is already rigged",
+  "status.rigging": "rigging…",
   "units.seconds": "s",
   "units.secShort": "s"
 }

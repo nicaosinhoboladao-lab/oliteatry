@@ -6,6 +6,7 @@
 import * as THREE from './vendor/three.module.js';
 import { PostStack } from './post.js';
 import { TransformControls, OrbitControls } from './vendor/addons.module.js';
+import { autoRigHumanoid } from './autorig.js';
 import { noise1, mulberry32, clamp } from '../core/prng.js';
 
 export const STAGE_PRESETS = {
@@ -734,6 +735,70 @@ export class Stage {
     });
     this.objects.splice(i, 1);
     return true;
+  }
+
+  /**
+   * Auto-rig an unrigged imported object: place a humanoid skeleton and skin
+   * the mesh, so animation clips (e.g. the Quaternius library) can drive it.
+   * Replaces the object's meshes with a single SkinnedMesh. Returns bone count.
+   */
+  autorigObject(entryId) {
+    const entry = this.getImported(entryId);
+    if (!entry || entry.builtin) throw new Error('cannot rig this object');
+
+    entry.object.updateMatrixWorld(true);
+    const inv = entry.object.matrixWorld.clone().invert();
+    const positions = [];
+    let material = null;
+    const meshes = [];
+    entry.object.traverse((o) => {
+      if (!o.isMesh) return;
+      meshes.push(o);
+      const geo = o.geometry;
+      const posAttr = geo?.getAttribute?.('position');
+      if (!posAttr) return;
+      const m = new THREE.Matrix4().copy(o.matrixWorld).multiply(inv);
+      const index = geo.index;
+      const count = index ? index.count : posAttr.count;
+      const tmp = new THREE.Vector3();
+      for (let i = 0; i + 2 < count; i += 3) {
+        const a = index ? index.getX(i) : i;
+        const b = index ? index.getX(i + 1) : i + 1;
+        const c = index ? index.getX(i + 2) : i + 2;
+        for (const vi of [a, b, c]) {
+          tmp.fromBufferAttribute(posAttr, vi).applyMatrix4(m);
+          positions.push(tmp.x, tmp.y, tmp.z);
+        }
+      }
+      if (!material && o.material) {
+        material = Array.isArray(o.material) ? o.material[0] : o.material;
+      }
+    });
+
+    if (positions.length < 9) throw new Error('no mesh to rig');
+
+    const rig = autoRigHumanoid(new Float32Array(positions));
+
+    // remove + dispose the original meshes
+    for (const mesh of meshes) {
+      mesh.parent?.remove(mesh);
+      mesh.geometry?.dispose?.();
+    }
+
+    const skinnedMaterial = material
+      ? material.clone()
+      : new THREE.MeshStandardMaterial({ color: 0x9a8b9c, roughness: 0.8, metalness: 0.04 });
+    // the welded geometry has no UVs; drop any map so the material renders fine
+    if (skinnedMaterial.map) skinnedMaterial.map = null;
+
+    const skinned = new THREE.SkinnedMesh(rig.geometry, skinnedMaterial);
+    skinned.castShadow = true;
+    skinned.receiveShadow = true;
+    skinned.add(rig.rootBone); // only the top bone — descendants chain through it
+    entry.object.add(skinned);
+    skinned.bind(rig.skeleton);
+    entry.object.updateMatrixWorld(true);
+    return rig.boneArray.length;
   }
 
   setTransformMode(mode) {

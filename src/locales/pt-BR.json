@@ -182,6 +182,11 @@
   "toast.animAdded": "{name} adicionado à linha do tempo",
   "timeline.track.anim": "Animação",
   "objects.addToTimeline": "Adicionar à linha do tempo",
+  "objects.autorig": "Auto-rig humanoide",
+  "objects.autorig.hint": "Gera um esqueleto humanoide e pesos de pele para que os clipes de animação animem esta malha.",
+  "toast.autorigged": "Rigado com {n} ossos",
+  "toast.autorigSkip": "Este objeto já está rigado",
+  "status.rigging": "rigando…",
   "units.seconds": "s",
   "units.secShort": "s"
 }
