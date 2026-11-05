@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('oliteatry', {
   saveBinary: (data, suggested, filters) => ipcRenderer.invoke('file:save-binary', data, suggested, filters),
   saveText: (text, suggested) => ipcRenderer.invoke('file:save-text', text, suggested),
   importModel: (kind = 'model') => ipcRenderer.invoke('model:open', { kind }),
+  readModel: (filePath) => ipcRenderer.invoke('model:read', filePath),
 
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),

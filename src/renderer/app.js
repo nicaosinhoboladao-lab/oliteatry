@@ -23,6 +23,7 @@ const api = window.oliteatry ?? {
   saveBinary: async () => ({ canceled: true }),
   saveText: async () => ({ canceled: true }),
   importModel: async () => ({ canceled: true }),
+  readModel: async () => ({ canceled: true }),
   minimize() {}, maximize() {}, close() {}, log() {},
 };
 
@@ -502,16 +503,24 @@ function setGizmoMode(mode) {
   document.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.gizmo === mode));
 }
 
+function syncFreecamToggle() {
+  if (state.refs.freecamToggle) state.refs.freecamToggle.checked = stage.freecam;
+}
+
 function panelObjects() {
   const box = el('div', { class: 'panel' + (state.activeTab === 'objects' ? ' active' : ''), 'data-panel': 'objects' });
   box.append(h2('objects.title'));
 
   box.append(buttonField('objects.importModel', () => importModel()));
   box.append(buttonField('objects.importAnimation', () => importAnimation()));
-  box.append(toggleField('objects.freecam', stage.freecam, (v) => {
-    stage.setFreecam(v);
-    setStatus('status.ready');
-  }));
+  const fcInput = el('input', { type: 'checkbox' });
+  fcInput.checked = stage.freecam;
+  fcInput.addEventListener('change', () => stage.setFreecam(fcInput.checked));
+  state.refs.freecamToggle = fcInput;
+  box.append(el('label', { class: 'toggle' },
+    el('span', { 'data-loc': 'objects.freecam' }),
+    fcInput,
+    el('span', { class: 'track' })));
   box.append(el('p', { class: 'hint', 'data-loc': 'objects.freecam.hint' }));
 
   box.append(section('objects.gizmo'));
@@ -735,6 +744,7 @@ async function importAnimation() {
     if (target && hasSkeleton(target.object)) {
       const clips = retargetClips(animations, target.object);
       const added = stage.addClips(target.id, clips);
+      target.retargetSources.push({ path: res.path, name: res.name });
       toast(state.i18n.t('toast.retargeted', { n: added, name: target.name }));
       renderObjectList();
       renderObjectProps();
@@ -814,6 +824,65 @@ async function autorigSelected() {
     toast(state.i18n.t('toast.error', { msg: err.message }), 'error');
   } finally {
     setStatus('status.ready');
+  }
+}
+
+/* ------------------------------- persistence ------------------------------ */
+
+/** Serialise the imported scene objects (engine-neutral paths + transforms). */
+function collectAssets() {
+  const assets = [];
+  for (const entry of stage.objects) {
+    if (entry.builtin) continue;
+    const e = new THREE.Euler().setFromQuaternion(entry.object.quaternion, 'XYZ');
+    assets.push({
+      type: 'model',
+      id: entry.id,
+      name: entry.name,
+      path: entry.source,
+      position: [entry.object.position.x, entry.object.position.y, entry.object.position.z],
+      rotation: [THREE.MathUtils.radToDeg(e.x), THREE.MathUtils.radToDeg(e.y), THREE.MathUtils.radToDeg(e.z)],
+      scale: [entry.object.scale.x, entry.object.scale.y, entry.object.scale.z],
+      visible: entry.object.visible,
+      autoRigged: Boolean(entry.autoRigged),
+    });
+    for (const src of entry.retargetSources) {
+      assets.push({ type: 'animation', targetId: entry.id, path: src.path, name: src.name });
+    }
+  }
+  return assets;
+}
+
+/** Re-import persisted assets (best-effort: skip missing/broken files). */
+async function restoreAssets(assets) {
+  if (!Array.isArray(assets)) return;
+  for (const a of assets) {
+    if (!a || !a.path) continue;
+    try {
+      const res = await api.readModel(a.path);
+      if (res.canceled || res.error) continue;
+      if (a.type === 'animation') {
+        const { object, animations } = await loadModelAsset(res);
+        const target = stage.getImported(a.targetId);
+        if (target && hasSkeleton(target.object) && animations.length) {
+          stage.addClips(target.id, retargetClips(animations, target.object));
+          target.retargetSources.push({ path: a.path, name: a.name });
+        }
+        continue;
+      }
+      const { object, animations } = await loadModelAsset(res);
+      const entry = stage.addImported(a.name, object, animations, {
+        source: a.path,
+        id: a.id,
+        position: a.position,
+        rotation: a.rotation,
+        scale: a.scale,
+        visible: a.visible,
+      });
+      if (a.autoRigged) {
+        try { stage.autorigObject(entry.id); } catch { /* ignore */ }
+      }
+    } catch { /* skip unreadable assets silently */ }
   }
 }
 
@@ -1122,6 +1191,7 @@ async function saveProject() {
   state.project.timeline.tracks = state.timeline.tracks;
   state.project.timeline.duration = state.timeline.duration;
   state.project.meta.name = $('#projectName').value || 'Palco sem nome';
+  state.project.assets = collectAssets();
   const res = await api.saveProject(projectToJSON(state.project), slug(state.project.meta.name) + '.oliteproj.json');
   if (!res.canceled) toast(state.i18n.t('toast.saved', { path: res.path }));
 }
@@ -1130,7 +1200,7 @@ async function openProject() {
   const res = await api.openProject();
   if (res.canceled) return;
   try {
-    loadProject(projectFromJSON(res.content));
+    await loadProject(projectFromJSON(res.content));
     toast(state.i18n.t('toast.opened'));
   } catch (err) {
     toast(state.i18n.t('toast.error', { msg: err.message }), 'error');
@@ -1143,11 +1213,11 @@ function slug(name) {
 }
 
 async function newProject() {
-  loadProject(createProject());
+  await loadProject(createProject());
   toast(state.i18n.t('top.new'));
 }
 
-function loadProject(project) {
+async function loadProject(project) {
   state.project = project;
   state.timeline = timelineFromProject(project);
   state.selectedClip = null;
@@ -1156,6 +1226,8 @@ function loadProject(project) {
   stage.applyLighting(project.lighting);
   stage.setCameras(project.cameras);
   stage.setPostParams(project.post);
+  stage.clearImported();
+  await restoreAssets(project.assets);
   rebuildPipeline();
   buildInspector();
   renderTimeline();
@@ -1411,6 +1483,7 @@ async function boot() {
   canvas = $('#view');
   viewport = $('#viewport');
   stage = new Stage(canvas);
+  stage.onFreecamChange = syncFreecamToggle;
   stage.transformControls.addEventListener('objectChange', () => syncTransformInputs());
   voice = new VoiceEngine();
   await voice.resume();
@@ -1418,7 +1491,7 @@ async function boot() {
   $('#gpuBadge').textContent = stage.renderer.capabilities.isWebGL2 ? 'WEBGL2' : 'WEBGL1';
 
   buildRail();
-  loadProject(createProject());
+  await loadProject(createProject());
   wireChrome();
   applySize();
   setTransportState();

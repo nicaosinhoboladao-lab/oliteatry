@@ -152,7 +152,7 @@
   "objects.importModel": "Import model…",
   "objects.importAnimation": "Import animation…",
   "objects.freecam": "Free camera",
-  "objects.freecam.hint": "Orbit (drag), pan (right-drag), zoom (wheel). G toggles.",
+  "objects.freecam.hint": "Drag to orbit, right-drag to pan, wheel to zoom — the free camera engages on its own. G returns to the stage camera.",
   "objects.gizmo": "Transform gizmo",
   "objects.mode.move": "Move",
   "objects.mode.rotate": "Rotate",

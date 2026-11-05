@@ -152,7 +152,7 @@
   "objects.importModel": "Importar modelo…",
   "objects.importAnimation": "Importar animação…",
   "objects.freecam": "Câmera livre",
-  "objects.freecam.hint": "Orbite (arrastar), mova (botão direito) e aproxime (roda). G alterna.",
+  "objects.freecam.hint": "Arraste para orbitar, botão direito para mover, roda para zoom — a câmera livre engaja sozinha. G volta para a câmera do palco.",
   "objects.gizmo": "Manipulador de transformação",
   "objects.mode.move": "Mover",
   "objects.mode.rotate": "Girar",

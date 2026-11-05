@@ -364,6 +364,16 @@ ipcMain.handle('model:open', async (_e, opts = {}) => {
   }
 });
 
+/** Re-read a model by path (project restore) — no dialog. */
+ipcMain.handle('model:read', async (_e, filePath) => {
+  try {
+    const asset = await readModelAsset(String(filePath));
+    return { canceled: false, ...asset };
+  } catch (err) {
+    return { canceled: false, error: String(err?.message ?? err), path: String(filePath) };
+  }
+});
+
 ipcMain.on('win:minimize', () => win?.minimize());
 ipcMain.on('win:maximize', () => {
   if (!win) return;

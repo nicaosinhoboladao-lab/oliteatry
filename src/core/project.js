@@ -77,6 +77,7 @@ export function createProject() {
     performance: { archetype: 'theatrical', intensity: 0.72, seed: 'jester-01', liveMic: false },
     voice: { provider: 'scratch-synth', locale: 'pt-BR', rate: 1, pitch: 0.92 },
     localization: { locale: 'pt-BR', fallback: 'en', catalogs: ['pt-BR', 'en'] },
+    assets: [],
     timeline: {
       duration: timeline.duration,
       fps: timeline.fps,

@@ -368,13 +368,25 @@ export class Stage {
     this.orbit.target.set(0, 1.1, 0);
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.08;
-    this.orbit.enabled = false;
+    this.orbit.enabled = true; // the mouse always navigates the free camera
+    this.onFreecamChange = null;
+    // first gesture (drag or wheel) engages the free camera without a jump
+    this.orbit.addEventListener('start', () => {
+      if (this.freecam) return;
+      const cam = this.activeCamera ?? this.cameras.A;
+      this.freeCamera.position.copy(cam.position);
+      this.freeCamera.quaternion.copy(cam.quaternion);
+      this.orbit.target.set(0, this.cameraCfg.A?.lookY ?? 1.2, 0);
+      this.freecam = true;
+      this.onFreecamChange?.();
+    });
 
     this.transformControls = new TransformControls(this.cameras.A, this.renderer.domElement);
     this.transformControls.enabled = false;
     this.transformControls.setMode(this.transformMode);
     this.transformControls.addEventListener('dragging-changed', (e) => {
       this.transformDragging = e.value;
+      this.orbit.enabled = !e.value; // don't orbit while dragging the gizmo
     });
     this.scene.add(this.transformControls);
 
@@ -656,8 +668,24 @@ export class Stage {
     object.traverse((o) => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
     });
+    const id = opts.id ?? `obj_${this._nextObjectId++}`;
+    if (opts.id) {
+      const n = parseInt(String(opts.id).replace(/^obj_/, ''), 10);
+      if (Number.isFinite(n)) this._nextObjectId = Math.max(this._nextObjectId, n + 1);
+    }
+    // restored transform (post-normalisation), optional
+    if (opts.position) object.position.fromArray(opts.position);
+    if (opts.rotation) {
+      object.rotation.set(
+        THREE.MathUtils.degToRad(opts.rotation[0]),
+        THREE.MathUtils.degToRad(opts.rotation[1]),
+        THREE.MathUtils.degToRad(opts.rotation[2]),
+      );
+    }
+    if (opts.scale) object.scale.fromArray(opts.scale);
+    if (opts.visible === false) object.visible = false;
     const entry = {
-      id: `obj_${this._nextObjectId++}`,
+      id,
       name: name || object.name || 'object',
       object,
       animations: animations ?? [],
@@ -673,10 +701,19 @@ export class Stage {
       timelineActive: false,
       builtin: Boolean(opts.builtin),
       source: opts.source ?? null,
+      autoRigged: false,
+      retargetSources: [],
     };
     this.objects.push(entry);
     this.scene.add(object);
     return entry;
+  }
+
+  /** Remove every non-builtin imported object (used on project load). */
+  clearImported() {
+    for (const entry of [...this.objects]) {
+      if (!entry.builtin) this.removeImported(entry.id);
+    }
   }
 
   getImported(id) {
@@ -798,6 +835,7 @@ export class Stage {
     entry.object.add(skinned);
     skinned.bind(rig.skeleton);
     entry.object.updateMatrixWorld(true);
+    entry.autoRigged = true;
     return rig.boneArray.length;
   }
 
@@ -808,11 +846,11 @@ export class Stage {
 
   setFreecam(on) {
     this.freecam = Boolean(on);
-    this.orbit.enabled = this.freecam;
     if (this.freecam) {
       this.freeCamera.aspect = this.cameras.A.aspect;
       this.freeCamera.updateProjectionMatrix();
     }
+    this.onFreecamChange?.();
   }
 
   /** Raycast the imported objects (+ jester) under a viewport pixel. */
@@ -959,7 +997,7 @@ export class Stage {
         }
       }
     }
-    if (this.freecam) this.orbit.update();
+    if (this.orbit.enabled) this.orbit.update();
   }
 
   render(t, transition) {
