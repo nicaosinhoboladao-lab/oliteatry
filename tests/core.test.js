@@ -9,7 +9,7 @@ import {
 } from '../src/core/performance.js';
 import { Timeline, trackTemplate } from '../src/core/timeline.js';
 import { I18n } from '../src/core/i18n.js';
-import { createProject, projectFromJSON, projectToJSON, SCHEMA_VERSION } from '../src/core/project.js';
+import { createProject, projectFromJSON, projectToJSON, SCHEMA_VERSION, timelineFromProject } from '../src/core/project.js';
 import { wordsToCues, cuesToSrt } from '../src/core/subtitles.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -265,6 +265,16 @@ describe('project format', () => {
   it('never stores engine types', () => {
     const json = projectToJSON(createProject());
     expect(json).not.toMatch(/UnityEngine|THREE\.|Matrix4x4|m_LocalPosition/);
+  });
+
+  it('ensures the animation track exists on older projects', () => {
+    const p = createProject();
+    const json = JSON.parse(projectToJSON(p));
+    json.timeline.tracks = json.timeline.tracks.filter((t) => t.id !== 'anim');
+    const tl = timelineFromProject(projectFromJSON(JSON.stringify(json)));
+    expect(tl.getTrack('anim')).toBeDefined();
+    const ids = tl.tracks.map((t) => t.id);
+    expect(ids.indexOf('anim')).toBeLessThan(ids.indexOf('sfx'));
   });
 });
 

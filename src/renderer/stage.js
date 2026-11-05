@@ -667,6 +667,9 @@ export class Stage {
       loop: true,
       speed: 1,
       playing: false,
+      timelineAction: null,
+      timelineClipName: null,
+      timelineActive: false,
       builtin: Boolean(opts.builtin),
       source: opts.source ?? null,
     };
@@ -785,6 +788,7 @@ export class Stage {
     const clip = this.clipsOf(entryId).find((c) => c.name === clipName);
     if (!entry || !clip) return;
     if (!entry.mixer) entry.mixer = new THREE.AnimationMixer(entry.object);
+    this.stopTimeline(entryId);
     entry.action?.stop();
     entry.loop = opts.loop ?? entry.loop;
     entry.speed = opts.speed ?? entry.speed;
@@ -806,6 +810,60 @@ export class Stage {
     entry.clipName = null;
   }
 
+  /* ------------------------- timeline-driven clips ------------------------ */
+
+  stopTimeline(entryId) {
+    const entry = this.getImported(entryId);
+    if (!entry) return;
+    entry.timelineAction?.stop();
+    entry.timelineAction = null;
+    entry.timelineClipName = null;
+    entry.timelineActive = false;
+  }
+
+  /**
+   * Drive an imported rig deterministically from the timeline clock: the pose
+   * is a pure function of `time`, so scrubbing is reversible and re-rendering
+   * tomorrow reproduces the same frame (the house determinism promise).
+   */
+  playTimeline(entryId, clipName, { time = 0, loop = true, speed = 1 } = {}) {
+    const entry = this.getImported(entryId);
+    const clip = this.clipsOf(entryId).find((c) => c.name === clipName);
+    if (!entry || !clip) return;
+    if (!entry.mixer) entry.mixer = new THREE.AnimationMixer(entry.object);
+    // timeline playback takes over wall-clock preview
+    entry.action?.stop(); entry.action = null; entry.playing = false; entry.clipName = null;
+    if (entry.timelineClipName !== clipName || !entry.timelineAction) {
+      entry.timelineAction?.stop();
+      entry.timelineAction = entry.mixer.clipAction(clip);
+      entry.timelineClipName = clipName;
+      entry.timelineAction.play(); // activate (clipAction alone leaves it inactive)
+    }
+    const action = entry.timelineAction;
+    action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+    action.clampWhenFinished = !loop;
+    action.enabled = true;
+    action.paused = false;
+    action.setEffectiveTimeScale(speed);
+    entry.timelineActive = true;
+    entry.mixer.setTime(time);
+    entry.mixer.update(0);
+  }
+
+  /**
+   * @param {{entryId:string, clipName:string, time:number, loop:boolean, speed:number}[]} schedule
+   */
+  syncTimelineAnimations(schedule) {
+    const active = new Set();
+    for (const s of schedule) {
+      this.playTimeline(s.entryId, s.clipName, s);
+      active.add(s.entryId);
+    }
+    for (const entry of this.objects) {
+      if (entry.timelineActive && !active.has(entry.id)) this.stopTimeline(entry.id);
+    }
+  }
+
   setClipSpeed(entryId, speed) {
     const entry = this.getImported(entryId);
     if (!entry) return;
@@ -825,7 +883,9 @@ export class Stage {
 
   update(dt) {
     for (const entry of this.objects) {
-      if (entry.mixer && entry.action) {
+      if (!entry.mixer) continue;
+      if (entry.timelineActive) continue; // timeline drives via setTime each frame
+      if (entry.action) {
         entry.mixer.update(dt);
         if (entry.playing && !entry.loop && !entry.action.isRunning()) {
           entry.playing = false;

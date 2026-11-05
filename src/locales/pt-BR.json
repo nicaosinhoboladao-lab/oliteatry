@@ -179,6 +179,9 @@
   "toast.imported": "Importado {name}",
   "toast.importedAnim": "Importado {name} com {n} clipes",
   "toast.retargeted": "{n} clipes retargetados para {name}",
+  "toast.animAdded": "{name} adicionado à linha do tempo",
+  "timeline.track.anim": "Animação",
+  "objects.addToTimeline": "Adicionar à linha do tempo",
   "units.seconds": "s",
   "units.secShort": "s"
 }

@@ -87,10 +87,19 @@ export function createProject() {
 
 export function timelineFromProject(project) {
   const t = project?.timeline ?? {};
+  const tracks = t.tracks ?? trackTemplate();
+  // the animation track arrived after the original schema — ensure it exists so
+  // projects saved by older builds can still hold animation clips
+  if (!tracks.some((tr) => tr.id === 'anim')) {
+    const at = tracks.findIndex((tr) => tr.id === 'sfx');
+    const anim = { id: 'anim', kind: 'animation', label: 'Animação', clips: [] };
+    if (at >= 0) tracks.splice(at, 0, anim);
+    else tracks.push(anim);
+  }
   return new Timeline({
     duration: t.duration ?? 18,
     fps: t.fps ?? DEFAULT_FPS,
-    tracks: t.tracks ?? trackTemplate(),
+    tracks,
   });
 }
 

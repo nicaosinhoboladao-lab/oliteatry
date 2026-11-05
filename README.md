@@ -31,7 +31,7 @@ Parchment-and-violet interface, PS2-era post stack, and a procedural idle-motion
 | **Recording** | MediaRecorder WebM (VP9/Opus) of canvas + studio audio, 24/30/60 fps, 1×/1.5×/2× supersampled output |
 | **Model import** | GLB / GLTF / FBX / OBJ(+MTL) / STL / PLY / DAE / **VRM** (three-vrm), auto-centred and scaled to the stage with shadows on |
 | **Scene objects** | Click-to-select, move / rotate / scale gizmo (W / E / R), numeric transform fields, visibility, free orbit camera (G), floor/centre/focus |
-| **Animation** | Clips embedded in imported models play through an `AnimationMixer` with loop + speed; same-name bone retargeting drives one rig from another (e.g. the CC0 Quaternius Universal Animation Library) |
+| **Animation** | Clips embedded in imported models play through an `AnimationMixer` with loop + speed; same-name bone retargeting drives one rig from another (e.g. the CC0 Quaternius Universal Animation Library). Clips can be dropped onto a dedicated timeline track and are then driven deterministically by the timeline clock (scrub-safe) |
 | **Project format** | Engine-neutral JSON (`.oliteproj.json`), schema version + migrator, round-trip tested |
 
 ![OLiteatry, wide shot](docs/media/wide-shot.png)

@@ -557,9 +557,7 @@ function renderObjectList() {
       const del = el('button', { class: 'obj-del', title: state.i18n.t('objects.delete') }, '✕');
       del.addEventListener('click', (e) => {
         e.stopPropagation();
-        stage.removeImported(entry.id);
-        renderObjectList();
-        renderObjectProps();
+        deleteObject(entry);
       });
       row.append(del);
     }
@@ -674,7 +672,9 @@ function renderObjectProps() {
         else stage.playClip(entry.id, clip.name);
         renderObjectProps();
       });
-      row.append(btn, el('span', { class: 'clip-name' }, clip.name));
+      const addTl = el('button', { class: 'btn small clip-tl', title: state.i18n.t('objects.addToTimeline') }, '⏱');
+      addTl.addEventListener('click', () => addClipToTimeline(entry, clip.name));
+      row.append(btn, el('span', { class: 'clip-name' }, clip.name), addTl);
       list.append(row);
     }
     host.append(list);
@@ -742,6 +742,51 @@ async function importAnimation() {
   } catch (err) {
     toast(state.i18n.t('toast.error', { msg: err.message }), 'error');
   }
+}
+
+/** Active timeline animation clips at time t, as a renderer schedule. */
+function buildAnimSchedule(t) {
+  const track = state.timeline?.getTrack('anim');
+  if (!track) return [];
+  const out = [];
+  for (const clip of track.clips) {
+    if (t < clip.start || t >= clip.start + clip.duration) continue;
+    const d = clip.data ?? {};
+    if (!d.objectId || !d.clipName) continue;
+    const speed = d.speed ?? 1;
+    out.push({
+      entryId: d.objectId,
+      clipName: d.clipName,
+      time: (t - clip.start) * speed,
+      loop: d.loop ?? true,
+      speed,
+    });
+  }
+  return out;
+}
+
+function addClipToTimeline(entry, clipName) {
+  const clip = stage.clipsOf(entry.id).find((c) => c.name === clipName);
+  if (!clip) return;
+  state.timeline.addClip('anim', {
+    id: `anim_${entry.id}_${Date.now()}`,
+    start: state.time,
+    duration: Math.max(0.5, clip.duration || 2),
+    label: `${entry.name} · ${clipName}`,
+    kind: 'animation',
+    data: { objectId: entry.id, clipName, loop: true, speed: 1 },
+  });
+  renderTimeline();
+  toast(state.i18n.t('toast.animAdded', { name: clipName }));
+}
+
+function deleteObject(entry) {
+  stage.removeImported(entry.id);
+  const track = state.timeline?.getTrack('anim');
+  if (track) track.clips = track.clips.filter((c) => c.data?.objectId !== entry.id);
+  renderTimeline();
+  renderObjectList();
+  renderObjectProps();
 }
 
 function updateExportSummary() {
@@ -1131,6 +1176,7 @@ function tick(now) {
   stage.applyPerformance(sample, { liveMic: live, mirrorTime: state.time });
   stage.updateDust(state.time);
   stage.update(dt);
+  stage.syncTimelineAnimations(buildAnimSchedule(state.time));
 
   const decision = state.timeline.cameraAt(state.time);
   if (!state.exporting) stage.render(state.time, decision);
@@ -1255,11 +1301,7 @@ function wireChrome() {
     if (e.code === 'Escape') { stage.deselect(); renderObjectList(); renderObjectProps(); }
     if (e.code === 'Delete' || e.code === 'Backspace') {
       const sel = stage.getSelected();
-      if (sel && !sel.builtin) {
-        stage.removeImported(sel.id);
-        renderObjectList();
-        renderObjectProps();
-      }
+      if (sel && !sel.builtin) deleteObject(sel);
     }
   });
 

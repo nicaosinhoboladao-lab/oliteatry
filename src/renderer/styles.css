@@ -599,6 +599,7 @@ input[type="color"] {
 .tl-label[data-kind="camera"] { color: #d9bd6d; }
 .tl-label[data-kind="voice"] { color: #d37987; }
 .tl-label[data-kind="motion"] { color: #a98cd0; }
+.tl-label[data-kind="animation"] { color: #9ccc7a; }
 .tl-label[data-kind="sfx"] { color: #8fb6b1; }
 
 .tl-grid { position: relative; flex: 1; min-width: 0; overflow: hidden; }
@@ -649,6 +650,7 @@ input[type="color"] {
 .clip[data-kind="camera"] { background: linear-gradient(180deg, #4b3a1c, #33270f); border-color: #8a6f2a; color: #e8cf94; }
 .clip[data-kind="voice"] { background: linear-gradient(180deg, #4a2230, #341722); border-color: #8e3f4f; color: #eab8c1; }
 .clip[data-kind="motion"] { background: linear-gradient(180deg, #35244c, #241733); border-color: #6b4a8f; color: #cfc0e6; }
+.clip[data-kind="animation"] { background: linear-gradient(180deg, #24402c, #17281c); border-color: #4c8f57; color: #bfe0c0; }
 .clip[data-kind="sfx"] { background: linear-gradient(180deg, #22403d, #16292a); border-color: #457c78; color: #b9ded9; }
 .clip .clip-tag { opacity: 0.6; margin-right: 4px; }
 
@@ -838,4 +840,5 @@ input[type="color"] {
 .clip-row:hover { background: rgba(36, 21, 40, 0.05); }
 .clip-row.playing { background: rgba(178, 139, 44, 0.14); color: var(--ink); }
 .clip-play { flex: 0 0 auto; width: 26px; padding: 3px 0; }
+.clip-tl { flex: 0 0 auto; width: 26px; padding: 3px 0; }
 .clip-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 10px; }

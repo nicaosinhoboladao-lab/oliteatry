@@ -15,6 +15,7 @@ export function trackTemplate() {
     { id: 'camera', kind: 'camera', label: 'Câmera', clips: [] },
     { id: 'voice', kind: 'speech', label: 'Voz', clips: [] },
     { id: 'motion', kind: 'motion', label: 'Movimento', clips: [] },
+    { id: 'anim', kind: 'animation', label: 'Animação', clips: [] },
     { id: 'sfx', kind: 'sfx', label: 'SFX', clips: [] },
   ];
 }
